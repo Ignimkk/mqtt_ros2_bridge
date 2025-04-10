@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<library path="ros2_introspection_plugins">
+  <class name="ros2_introspection/TFMessageHandler" 
+         type="ros2_introspection::plugins::TFMessageHandler" 
+         base_class_type="ros2_introspection::MessageHandlerPlugin">
+    <description>
+      tf2_msgs/msg/TFMessage 메시지를 처리하는 전용 핸들러
+    </description>
+  </class>
+</library> 
