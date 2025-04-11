@@ -28,6 +28,12 @@ find_package(tf2_ros REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(class_loader REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(std_msgs REQUIRED)
+
+# Include directories
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
 
 # 플러그인 라이브러리 직접 포함
 add_library(${PROJECT_NAME}
@@ -53,6 +59,7 @@ ament_target_dependencies(${PROJECT_NAME}
   tf2_ros
   pluginlib
   class_loader
+  std_msgs
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -94,6 +101,7 @@ target_include_directories(message_formatter PUBLIC
 
 ament_target_dependencies(message_formatter
   rclcpp
+  std_msgs
 )
 
 target_link_libraries(message_formatter
@@ -120,6 +128,7 @@ ament_target_dependencies(dynamic_introspection_node
   tf2_ros
   pluginlib
   class_loader
+  yaml-cpp
 )
 
 # Test node
@@ -148,6 +157,12 @@ install(
 install(
   FILES plugins/plugins.xml
   DESTINATION share/${PROJECT_NAME}
+)
+
+# config 디렉토리 설치
+install(
+  DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
 )
 
 # 플러그인 내보내기
