@@ -11,3 +11,21 @@ topics:
 output_format: "json"  # Options: console, json, csv
 update_rate: 1.0  # Hz
 use_plugins: true  # Whether to use message type-specific plugins 
+
+# MQTT settings
+mqtt:
+  enabled: true
+  host: "localhost"
+  port: 1883
+  client_id: "ros2_introspection"
+  topics:
+    - ros_topic: "/tf"
+      mqtt_topic: "ros2/tf"
+    - ros_topic: "/joint_states"
+      mqtt_topic: "ros2/joint_states"
+    - ros_topic: "/camera/color/camera_info"
+      mqtt_topic: "ros2/camera_info"
+  # QoS level (0, 1, or 2)
+  qos: 0
+  # Whether to retain messages
+  retain: false 

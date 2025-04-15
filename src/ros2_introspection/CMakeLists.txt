@@ -29,6 +29,11 @@ find_package(pluginlib REQUIRED)
 find_package(class_loader REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(rcutils REQUIRED)
+
+# 모스키토 의존성 추가
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(MOSQUITTO REQUIRED libmosquitto)
 
 # Include directories
 include_directories(
@@ -36,16 +41,18 @@ include_directories(
 )
 
 # 플러그인 라이브러리 직접 포함
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} SHARED
   src/ros2_introspection.cpp
   src/stringtree.cpp
   src/plugin_loader.cpp
+  src/message_formatter.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
-)
+  ${MOSQUITTO_INCLUDE_DIRS}
+  ${YAML_CPP_INCLUDE_DIR})
 
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
@@ -60,10 +67,17 @@ ament_target_dependencies(${PROJECT_NAME}
   pluginlib
   class_loader
   std_msgs
+  rcutils
 )
 
 target_link_libraries(${PROJECT_NAME}
   Boost::container
+  rclcpp::rclcpp
+  rcutils::rcutils
+  ${YAML_CPP_LIBRARIES}
+  nlohmann_json::nlohmann_json
+  ${pluginlib_LIBRARIES}
+  ${MOSQUITTO_LIBRARIES}
 )
 
 # 별도의 플러그인 라이브러리 생성

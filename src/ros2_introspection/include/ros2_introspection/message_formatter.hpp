@@ -9,9 +9,21 @@
 #include <nlohmann/json.hpp>
 #include "rclcpp/logger.hpp"
 #include <ros2_introspection/ros2_introspection.hpp>
+#include <mosquitto.h>
 
 namespace ros2_introspection
 {
+
+// MQTT 설정을 저장하는 구조체
+struct MqttConfig {
+    bool enabled = false;
+    std::string host = "localhost";
+    int port = 1883;
+    std::string client_id = "ros2_introspection";
+    std::map<std::string, std::string> topic_mapping;  // ROS 토픽 -> MQTT 토픽 매핑
+    int qos = 0;
+    bool retain = false;
+};
 
 class MessageFormatter 
 {
@@ -52,6 +64,13 @@ public:
         const rclcpp::Logger& logger,
         const std::map<std::string, Ros2Introspection::RenamedValues>& messages,
         const std::map<std::string, size_t>& message_counts);
+    
+    // MQTT 관련 메서드
+    void initMqtt(const MqttConfig& config);
+    void publishToMqtt(const std::string& topic, const nlohmann::json& data);
+    void closeMqtt();
+    bool isMqttEnabled() const { return mqtt_config_.enabled; }
+    const MqttConfig& getMqttConfig() const { return mqtt_config_; }
 
 protected:
     // 필드 그룹 정보를 저장하는 구조체
@@ -102,6 +121,12 @@ protected:
 
     // 유틸리티 함수: RenamedValues를 JSON으로 변환
     static nlohmann::json renamedValuesToJson(const Ros2Introspection::RenamedValues& values);
+    
+private:
+    // MQTT 관련 멤버 변수
+    MqttConfig mqtt_config_;
+    struct mosquitto* mosq_ = nullptr;
+    bool mqtt_connected_ = false;
 };
 
 // 기존 코드와의 호환성을 위한 포맷터 클래스들
@@ -122,6 +147,9 @@ public:
 class JsonMessageFormatter : public MessageFormatter
 {
 public:
+    JsonMessageFormatter() = default;
+    ~JsonMessageFormatter() override;
+    
     void formatSingleMessage(
         const rclcpp::Logger& logger,
         const std::string& topic,

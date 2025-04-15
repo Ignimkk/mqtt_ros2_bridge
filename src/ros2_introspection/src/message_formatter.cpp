@@ -10,6 +10,88 @@
 namespace ros2_introspection
 {
 
+// MQTT 관련 메서드 구현
+void MessageFormatter::initMqtt(const MqttConfig& config)
+{
+    mqtt_config_ = config;
+    
+    if (!mqtt_config_.enabled) {
+        return;
+    }
+    
+    // libmosquitto 초기화
+    mosquitto_lib_init();
+    
+    // 클라이언트 인스턴스 생성
+    mosq_ = mosquitto_new(mqtt_config_.client_id.c_str(), true, this);
+    if (!mosq_) {
+        throw std::runtime_error("Failed to create MQTT client instance");
+    }
+    
+    // 서버 연결
+    int rc = mosquitto_connect(mosq_, mqtt_config_.host.c_str(), mqtt_config_.port, 60);
+    if (rc != MOSQ_ERR_SUCCESS) {
+        std::string error_msg = "Failed to connect to MQTT broker: " + std::string(mosquitto_strerror(rc));
+        mosquitto_destroy(mosq_);
+        mosq_ = nullptr;
+        throw std::runtime_error(error_msg);
+    }
+    
+    // 백그라운드 처리 시작
+    rc = mosquitto_loop_start(mosq_);
+    if (rc != MOSQ_ERR_SUCCESS) {
+        std::string error_msg = "Failed to start MQTT loop: " + std::string(mosquitto_strerror(rc));
+        mosquitto_disconnect(mosq_);
+        mosquitto_destroy(mosq_);
+        mosq_ = nullptr;
+        throw std::runtime_error(error_msg);
+    }
+    
+    mqtt_connected_ = true;
+}
+
+void MessageFormatter::publishToMqtt(const std::string& topic, const nlohmann::json& data)
+{
+    if (!mqtt_config_.enabled || !mosq_ || !mqtt_connected_) {
+        return;
+    }
+    
+    // ROS 토픽에 해당하는 MQTT 토픽 찾기
+    auto it = mqtt_config_.topic_mapping.find(topic);
+    if (it == mqtt_config_.topic_mapping.end()) {
+        // 매핑이 없으면 발행하지 않음
+        return;
+    }
+    
+    // JSON 데이터를 문자열로 변환
+    std::string payload = data.dump();
+    
+    // MQTT로 메시지 발행
+    int rc = mosquitto_publish(mosq_, nullptr, it->second.c_str(), payload.size(), 
+                              payload.c_str(), mqtt_config_.qos, mqtt_config_.retain);
+    
+    if (rc != MOSQ_ERR_SUCCESS) {
+        RCLCPP_ERROR(rclcpp::get_logger("message_formatter"), 
+                    "Failed to publish to MQTT topic %s: %s", 
+                    it->second.c_str(), mosquitto_strerror(rc));
+    }
+}
+
+void MessageFormatter::closeMqtt()
+{
+    if (mosq_ && mqtt_connected_) {
+        // 연결 종료
+        mosquitto_disconnect(mosq_);
+        mosquitto_loop_stop(mosq_, true);
+        mosquitto_destroy(mosq_);
+        mosq_ = nullptr;
+        mqtt_connected_ = false;
+    }
+    
+    // 라이브러리 정리
+    mosquitto_lib_cleanup();
+}
+
 std::string MessageFormatter::formatMessage(
     const std::string& topic_name,
     const std::string& json_data,
@@ -323,6 +405,12 @@ void ConsoleMessageFormatter::formatAllMessages(
 }
 
 // JsonMessageFormatter 구현
+JsonMessageFormatter::~JsonMessageFormatter()
+{
+    // MQTT 자원 정리
+    closeMqtt();
+}
+
 void JsonMessageFormatter::formatSingleMessage(
     const rclcpp::Logger& logger,
     const std::string& topic,
@@ -340,6 +428,9 @@ void JsonMessageFormatter::formatSingleMessage(
         // 로거를 통해 출력
         RCLCPP_INFO(logger, "%s", formatted.c_str());
         
+        // 구조화된 데이터 생성
+        auto structured_data = convertToStructured(json_data);
+        
         // 테스트 목적으로 JSON 파일 저장
         try {
             // 토픽에서 파일명 생성 - '/'를 '_'로 대체
@@ -350,8 +441,6 @@ void JsonMessageFormatter::formatSingleMessage(
             }
             filename += ".json";
             
-            // 구조화된 데이터 파일로 저장
-            auto structured_data = convertToStructured(json_data);
             std::ofstream file(filename);
             if (file.is_open()) {
                 file << structured_data.dump(2); // 2-space indentation for readability
@@ -362,6 +451,11 @@ void JsonMessageFormatter::formatSingleMessage(
             }
         } catch (const std::exception& e) {
             RCLCPP_ERROR(logger, "Error saving JSON file: %s", e.what());
+        }
+        
+        // MQTT로 발행
+        if (isMqttEnabled()) {
+            publishToMqtt(topic, structured_data);
         }
     } catch (const std::exception& e) {
         RCLCPP_ERROR(logger, "Error formatting JSON for topic %s: %s", topic.c_str(), e.what());
