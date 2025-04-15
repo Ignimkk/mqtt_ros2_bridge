@@ -22,6 +22,12 @@
 
 using namespace std::chrono_literals;
 
+// 네임스페이스 사용 선언 추가
+using ros2_introspection::MessageFormatter;
+using ros2_introspection::ConsoleMessageFormatter;
+using ros2_introspection::JsonMessageFormatter;
+using ros2_introspection::CsvMessageFormatter;
+
 class DynamicIntrospectionNode : public rclcpp::Node
 {
 public:
@@ -538,20 +544,20 @@ private:
       if (param.get_name() == "topics" || param.get_name() == "types") {
         need_resubscribe = true;
       } else if (param.get_name() == "output_format") {
-        output_format_ = param.as_string();
-        // 포맷터 업데이트
+        std::string output_format = param.as_string();
         try {
-          if (output_format_ == "json") {
-            formatter_ = std::make_shared<JsonMessageFormatter>();
-          } else if (output_format_ == "csv") {
-            formatter_ = std::make_shared<CsvMessageFormatter>();
+          if (output_format == "json") {
+            formatter_ = std::make_shared<ros2_introspection::JsonMessageFormatter>();
+          } else if (output_format == "csv") {
+            formatter_ = std::make_shared<ros2_introspection::CsvMessageFormatter>();
           } else {
-            formatter_ = std::make_shared<ConsoleMessageFormatter>();
+            formatter_ = std::make_shared<ros2_introspection::ConsoleMessageFormatter>();
           }
+          output_format_ = output_format;
         } catch (const std::exception& e) {
           RCLCPP_ERROR(this->get_logger(), "Error updating formatter: %s", e.what());
           result.successful = false;
-          result.reason = std::string("Error updating formatter: ") + e.what();
+          result.reason = "Error updating formatter: " + std::string(e.what());
           return result;
         }
       } else if (param.get_name() == "update_rate") {
@@ -615,7 +621,7 @@ private:
   // 멤버 변수
   std::shared_ptr<Ros2Introspection::Parser> parser_;
   std::vector<rclcpp::GenericSubscription::SharedPtr> subscriptions_;
-  std::shared_ptr<MessageFormatter> formatter_;
+  std::shared_ptr<ros2_introspection::MessageFormatter> formatter_;
   std::vector<std::string> topics_;
   std::vector<std::string> types_;
   std::string output_format_;

@@ -5,8 +5,9 @@ topics:
     type: "tf2_msgs/msg/TFMessage"
   - name: "/joint_states"
     type: "sensor_msgs/msg/JointState"
-
+  - name: "/camera/color/camera_info"
+    type: "sensor_msgs/msg/CameraInfo"
 # Global settings
 output_format: "json"  # Options: console, json, csv
-update_rate: 10.0  # Hz
+update_rate: 1.0  # Hz
 use_plugins: true  # Whether to use message type-specific plugins 
