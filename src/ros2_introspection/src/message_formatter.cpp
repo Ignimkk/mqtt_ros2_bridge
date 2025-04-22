@@ -551,272 +551,75 @@ nlohmann::json MessageFormatter::convertToStructured(const nlohmann::json& flat_
 {
     nlohmann::json result;
     
-    // /tf/transforms.0/... -> transforms[0]...
-    // /joint_states/position.0 -> position[0]
-    std::map<std::string, std::map<int, nlohmann::json>> arrays;
-    std::regex array_pattern(R"(^(.+)\.(\d+)\/(.+)$)");
-    std::regex simple_array_pattern(R"(^(.+)\.(\d+)$)");
-    
-    // 먼저 기본 네임스페이스를 식별 (예: joint_states/, tf/)
-    std::set<std::string> namespaces;
-    
+    // 메시지 구조를 반영한 경로 처리
     for (const auto& [key, value] : flat_data.items()) {
         std::string path = key;
         if (path[0] == '/') {
-            path = path.substr(1);  // 맨 앞의 / 제거
+            path = path.substr(1);
         }
         
-        // 첫 번째 '/' 기준으로 네임스페이스 추출
-        size_t slash_pos = path.find('/');
-        if (slash_pos != std::string::npos) {
-            namespaces.insert(path.substr(0, slash_pos));
-        }
-    }
-    
-    // 각 키를 네임스페이스 기준으로 올바른 위치에 배치
-    for (const auto& [key, value] : flat_data.items()) {
-        std::string path = key;
-        if (path[0] == '/') {
-            path = path.substr(1);  // 맨 앞의 / 제거
-        }
-        
-        // 네임스페이스 확인
-        std::string current_ns = "";
-        size_t ns_length = 0;
-        
-        for (const auto& ns : namespaces) {
-            if (path.find(ns + "/") == 0 && ns.length() > ns_length) {
-                current_ns = ns;
-                ns_length = ns.length();
-            }
-        }
-        
-        // 네임스페이스가 있으면 경로에서 제거하고 계층 구조로 변환
-        std::string adjusted_path;
-        if (!current_ns.empty()) {
-            adjusted_path = path.substr(current_ns.length() + 1); // +1 for the trailing '/'
-        } else {
-            adjusted_path = path;
-        }
-        
-        std::smatch matches;
-        // 배열 내 객체 처리 (예: transforms.0/header/frame_id)
-        if (std::regex_match(adjusted_path, matches, array_pattern)) {
-            std::string array_name = matches[1].str();
-            int index = std::stoi(matches[2].str());
-            std::string field_path = matches[3].str();
-            
-            // JSON 경로를 점(.)으로 분리
-            std::vector<std::string> path_parts;
-            std::string current;
-            for (char c : field_path) {
-                if (c == '/') {
-                    if (!current.empty()) {
-                        path_parts.push_back(current);
-                        current.clear();
-                    }
-                } else {
-                    current += c;
-                }
-            }
-            if (!current.empty()) {
-                path_parts.push_back(current);
-            }
-            
-            // 네임스페이스가 있으면 해당 네임스페이스 내에 배열 생성
-            nlohmann::json* target;
-            if (!current_ns.empty()) {
-                if (!result.contains(current_ns)) {
-                    result[current_ns] = nlohmann::json::object();
-                }
-                target = &arrays[current_ns + "/" + array_name][index];
-            } else {
-                target = &arrays[array_name][index];
-            }
-            
-            // 중첩된 객체 생성
-            nlohmann::json* current_obj = target;
-            for (size_t i = 0; i < path_parts.size() - 1; ++i) {
-                if (!current_obj->contains(path_parts[i])) {
-                    (*current_obj)[path_parts[i]] = nlohmann::json::object();
-                }
-                current_obj = &(*current_obj)[path_parts[i]];
-            }
-            
-            // 최종 값 할당
-            (*current_obj)[path_parts.back()] = value;
-        }
-        // 단순 배열 처리 (예: position.0)
-        else if (std::regex_match(adjusted_path, matches, simple_array_pattern)) {
-            std::string array_name = matches[1].str();
-            int index = std::stoi(matches[2].str());
-            
-            // 네임스페이스가 있으면 해당 네임스페이스 내에 배열 저장
-            std::string full_array_name;
-            if (!current_ns.empty()) {
-                if (!result.contains(current_ns)) {
-                    result[current_ns] = nlohmann::json::object();
-                }
-                full_array_name = current_ns + "/" + array_name;
-            } else {
-                full_array_name = array_name;
-            }
-            
-            if (arrays.find(full_array_name) == arrays.end()) {
-                arrays[full_array_name] = std::map<int, nlohmann::json>();
-            }
-            
-            arrays[full_array_name][index] = value;
-        }
-        // 일반 필드
-        else {
-            std::vector<std::string> path_parts;
-            std::string current;
-            
-            // 네임스페이스가 있는 경우 먼저 해당 네임스페이스 객체 생성
-            nlohmann::json* target = &result;
-            if (!current_ns.empty()) {
-                if (!result.contains(current_ns)) {
-                    result[current_ns] = nlohmann::json::object();
-                }
-                target = &result[current_ns];
-            }
-            
-            for (char c : adjusted_path) {
-                if (c == '/') {
-                    if (!current.empty()) {
-                        path_parts.push_back(current);
-                        current.clear();
-                    }
-                } else {
-                    current += c;
-                }
-            }
-            if (!current.empty()) {
-                path_parts.push_back(current);
-            }
-            
-            // 중첩된 객체 생성
-            nlohmann::json* current_obj = target;
-            for (size_t i = 0; i < path_parts.size() - 1; ++i) {
-                if (!current_obj->contains(path_parts[i])) {
-                    (*current_obj)[path_parts[i]] = nlohmann::json::object();
-                }
-                current_obj = &(*current_obj)[path_parts[i]];
-            }
-            
-            // 최종 값 할당
-            if (!path_parts.empty()) {
-                (*current_obj)[path_parts.back()] = value;
-            }
-        }
-    }
-    
-    // 배열 처리
-    for (const auto& [array_name, indices] : arrays) {
-        // 네임스페이스와 실제 배열 이름 분리
-        std::string ns = "";
-        std::string actual_array_name = array_name;
-        
-        size_t slash_pos = array_name.find('/');
-        if (slash_pos != std::string::npos) {
-            ns = array_name.substr(0, slash_pos);
-            actual_array_name = array_name.substr(slash_pos + 1);
-        }
-        
-        // 배열 내 객체들이 있는 경우 (transforms 등)
-        if (!indices.empty() && indices.begin()->second.is_object()) {
-            nlohmann::json array = nlohmann::json::array();
-            // 인덱스 순서대로 정렬
-            for (const auto& [idx, obj] : indices) {
-                // idx가 array.size()보다 크면 그 사이에 null을 채움
-                while (array.size() < static_cast<size_t>(idx)) {
-                    array.push_back(nullptr);
-                }
-                array.push_back(obj);
-            }
-            
-            // 타겟 객체 결정
-            if (!ns.empty()) {
-                // 중첩 경로 처리 (예: actual_array_name이 여러 레벨을 가질 수 있음)
-                std::vector<std::string> path_parts;
-                std::string current;
-                
-                for (char c : actual_array_name) {
-                    if (c == '/') {
-                        if (!current.empty()) {
-                            path_parts.push_back(current);
-                            current.clear();
-                        }
-                    } else {
-                        current += c;
-                    }
-                }
+        // 경로를 '/'로 분리
+        std::vector<std::string> parts;
+        std::string current;
+        for (char c : path) {
+            if (c == '/') {
                 if (!current.empty()) {
-                    path_parts.push_back(current);
-                }
-                
-                // 중첩 객체 생성
-                nlohmann::json* current_obj = &result[ns];
-                for (size_t i = 0; i < path_parts.size() - 1; ++i) {
-                    if (!current_obj->contains(path_parts[i])) {
-                        (*current_obj)[path_parts[i]] = nlohmann::json::object();
-                    }
-                    current_obj = &(*current_obj)[path_parts[i]];
-                }
-                
-                if (!path_parts.empty()) {
-                    (*current_obj)[path_parts.back()] = array;
+                    parts.push_back(current);
+                    current.clear();
                 }
             } else {
-                // 중첩 경로 처리
-                std::vector<std::string> path_parts;
-                std::string current;
-                
-                for (char c : actual_array_name) {
-                    if (c == '/') {
-                        if (!current.empty()) {
-                            path_parts.push_back(current);
-                            current.clear();
-                        }
-                    } else {
-                        current += c;
-                    }
-                }
-                if (!current.empty()) {
-                    path_parts.push_back(current);
-                }
-                
-                nlohmann::json* current_obj = &result;
-                for (size_t i = 0; i < path_parts.size() - 1; ++i) {
-                    if (!current_obj->contains(path_parts[i])) {
-                        (*current_obj)[path_parts[i]] = nlohmann::json::object();
-                    }
-                    current_obj = &(*current_obj)[path_parts[i]];
-                }
-                
-                if (!path_parts.empty()) {
-                    (*current_obj)[path_parts.back()] = array;
-                }
+                current += c;
             }
         }
-        // 단순 배열인 경우 (position, velocity 등)
-        else {
-            nlohmann::json array = nlohmann::json::array();
-            // 인덱스 순서대로 정렬
-            for (const auto& [idx, value] : indices) {
-                // idx가 array.size()보다 크면 그 사이에 null을 채움
-                while (array.size() < static_cast<size_t>(idx)) {
-                    array.push_back(nullptr);
+        if (!current.empty()) {
+            parts.push_back(current);
+        }
+        
+        // JSON 객체 생성
+        nlohmann::json* current_obj = &result;
+        for (size_t i = 0; i < parts.size() - 1; ++i) {
+            // 배열 인덱스 처리 (예: transforms.0)
+            size_t dot_pos = parts[i].find('.');
+            if (dot_pos != std::string::npos) {
+                std::string array_name = parts[i].substr(0, dot_pos);
+                int index = std::stoi(parts[i].substr(dot_pos + 1));
+                
+                if (!current_obj->contains(array_name)) {
+                    (*current_obj)[array_name] = nlohmann::json::array();
                 }
-                array.push_back(value);
-            }
-            
-            // 타겟 객체 결정
-            if (!ns.empty()) {
-                result[ns][actual_array_name] = array;
+                
+                // 배열 크기 확장
+                while (static_cast<int>((*current_obj)[array_name].size()) <= index) {
+                    (*current_obj)[array_name].push_back(nlohmann::json::object());
+                }
+                
+                current_obj = &(*current_obj)[array_name][index];
             } else {
-                result[actual_array_name] = array;
+                if (!current_obj->contains(parts[i])) {
+                    (*current_obj)[parts[i]] = nlohmann::json::object();
+                }
+                current_obj = &(*current_obj)[parts[i]];
+            }
+        }
+        
+        // 마지막 값 할당
+        if (!parts.empty()) {
+            std::string last_part = parts.back();
+            size_t dot_pos = last_part.find('.');
+            if (dot_pos != std::string::npos) {
+                std::string array_name = last_part.substr(0, dot_pos);
+                int index = std::stoi(last_part.substr(dot_pos + 1));
+                
+                if (!current_obj->contains(array_name)) {
+                    (*current_obj)[array_name] = nlohmann::json::array();
+                }
+                
+                while (static_cast<int>((*current_obj)[array_name].size()) <= index) {
+                    (*current_obj)[array_name].push_back(value);
+                }
+                (*current_obj)[array_name][index] = value;
+            } else {
+                (*current_obj)[last_part] = value;
             }
         }
     }
