@@ -26,7 +26,6 @@ using namespace std::chrono_literals;
 using ros2_introspection::MessageFormatter;
 using ros2_introspection::ConsoleMessageFormatter;
 using ros2_introspection::JsonMessageFormatter;
-using ros2_introspection::CsvMessageFormatter;
 
 class DynamicIntrospectionNode : public rclcpp::Node
 {
@@ -112,90 +111,83 @@ public:
     parser_->setMaxArrayPolicy(Ros2Introspection::Parser::KEEP_LARGE_ARRAYS);
     
     // 포맷터 초기화
-    try {
-      if (output_format == "json") {
-        formatter_ = std::make_shared<JsonMessageFormatter>();
-      } else if (output_format == "csv") {
-        formatter_ = std::make_shared<CsvMessageFormatter>();
-      } else {
-        formatter_ = std::make_shared<ConsoleMessageFormatter>();
-      }
-      
-      if (!formatter_) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to initialize formatter");
-        return;
-      }
-      
-      // MQTT 설정 로드 및 초기화
-      if (config_file.empty()) {
-        // 설정 파일이 없으면 기본 설정으로 초기화
-        ros2_introspection::MqttConfig mqtt_config;
-        mqtt_config.enabled = this->declare_parameter("mqtt.enabled", false);
-        if (mqtt_config.enabled) {
-          mqtt_config.host = this->declare_parameter("mqtt.host", std::string("localhost"));
-          mqtt_config.port = this->declare_parameter("mqtt.port", 1883);
-          mqtt_config.client_id = this->declare_parameter("mqtt.client_id", std::string("ros2_introspection"));
-          mqtt_config.qos = this->declare_parameter("mqtt.qos", 0);
-          mqtt_config.retain = this->declare_parameter("mqtt.retain", false);
-          
-          // 토픽 매핑 설정
-          std::vector<std::string> ros_topics = this->declare_parameter("mqtt.ros_topics", std::vector<std::string>{});
-          std::vector<std::string> mqtt_topics = this->declare_parameter("mqtt.mqtt_topics", std::vector<std::string>{});
-          
-          if (ros_topics.size() == mqtt_topics.size()) {
-            for (size_t i = 0; i < ros_topics.size(); i++) {
-              mqtt_config.topic_mapping[ros_topics[i]] = mqtt_topics[i];
-            }
-          } else {
-            RCLCPP_WARN(this->get_logger(), "Number of ROS topics and MQTT topics do not match, MQTT publishing disabled");
-            mqtt_config.enabled = false;
+    if (output_format == "json") {
+      formatter_ = std::make_shared<JsonMessageFormatter>();
+    } else {
+      formatter_ = std::make_shared<ConsoleMessageFormatter>();
+    }
+    
+    if (!formatter_) {
+      RCLCPP_ERROR(this->get_logger(), "Failed to initialize formatter");
+      return;
+    }
+    
+    // MQTT 설정 로드 및 초기화
+    if (config_file.empty()) {
+      // 설정 파일이 없으면 기본 설정으로 초기화
+      ros2_introspection::MqttConfig mqtt_config;
+      mqtt_config.enabled = this->declare_parameter("mqtt.enabled", false);
+      if (mqtt_config.enabled) {
+        mqtt_config.host = this->declare_parameter("mqtt.host", std::string("localhost"));
+        mqtt_config.port = this->declare_parameter("mqtt.port", 1883);
+        mqtt_config.client_id = this->declare_parameter("mqtt.client_id", std::string("ros2_introspection"));
+        mqtt_config.qos = this->declare_parameter("mqtt.qos", 0);
+        mqtt_config.retain = this->declare_parameter("mqtt.retain", false);
+        
+        // 토픽 매핑 설정
+        std::vector<std::string> ros_topics = this->declare_parameter("mqtt.ros_topics", std::vector<std::string>{});
+        std::vector<std::string> mqtt_topics = this->declare_parameter("mqtt.mqtt_topics", std::vector<std::string>{});
+        
+        if (ros_topics.size() == mqtt_topics.size()) {
+          for (size_t i = 0; i < ros_topics.size(); i++) {
+            mqtt_config.topic_mapping[ros_topics[i]] = mqtt_topics[i];
           }
+        } else {
+          RCLCPP_WARN(this->get_logger(), "Number of ROS topics and MQTT topics do not match, MQTT publishing disabled");
+          mqtt_config.enabled = false;
         }
-        formatter_->initMqtt(mqtt_config);
-      } else {
-        // 설정 파일에서 MQTT 설정 로드
-        try {
-          YAML::Node config = YAML::LoadFile(config_file);
-          if (config["mqtt"]) {
-            ros2_introspection::MqttConfig mqtt_config;
-            mqtt_config.enabled = config["mqtt"]["enabled"] ? config["mqtt"]["enabled"].as<bool>() : false;
+      }
+      formatter_->initMqtt(mqtt_config);
+    } else {
+      // 설정 파일에서 MQTT 설정 로드
+      try {
+        YAML::Node config = YAML::LoadFile(config_file);
+        if (config["mqtt"]) {
+          ros2_introspection::MqttConfig mqtt_config;
+          mqtt_config.enabled = config["mqtt"]["enabled"] ? config["mqtt"]["enabled"].as<bool>() : false;
+          
+          if (mqtt_config.enabled) {
+            // 기본 설정 로드
+            mqtt_config.host = config["mqtt"]["host"] ? config["mqtt"]["host"].as<std::string>() : "localhost";
+            mqtt_config.port = config["mqtt"]["port"] ? config["mqtt"]["port"].as<int>() : 1883;
+            mqtt_config.client_id = config["mqtt"]["client_id"] ? config["mqtt"]["client_id"].as<std::string>() : "ros2_introspection";
+            mqtt_config.qos = config["mqtt"]["qos"] ? config["mqtt"]["qos"].as<int>() : 0;
+            mqtt_config.retain = config["mqtt"]["retain"] ? config["mqtt"]["retain"].as<bool>() : false;
             
-            if (mqtt_config.enabled) {
-              // 기본 설정 로드
-              mqtt_config.host = config["mqtt"]["host"] ? config["mqtt"]["host"].as<std::string>() : "localhost";
-              mqtt_config.port = config["mqtt"]["port"] ? config["mqtt"]["port"].as<int>() : 1883;
-              mqtt_config.client_id = config["mqtt"]["client_id"] ? config["mqtt"]["client_id"].as<std::string>() : "ros2_introspection";
-              mqtt_config.qos = config["mqtt"]["qos"] ? config["mqtt"]["qos"].as<int>() : 0;
-              mqtt_config.retain = config["mqtt"]["retain"] ? config["mqtt"]["retain"].as<bool>() : false;
-              
-              // 토픽 매핑 로드
-              if (config["mqtt"]["topics"]) {
-                for (const auto& topic_mapping : config["mqtt"]["topics"]) {
-                  if (topic_mapping["ros_topic"] && topic_mapping["mqtt_topic"]) {
-                    std::string ros_topic = topic_mapping["ros_topic"].as<std::string>();
-                    std::string mqtt_topic = topic_mapping["mqtt_topic"].as<std::string>();
-                    mqtt_config.topic_mapping[ros_topic] = mqtt_topic;
-                  }
+            // 토픽 매핑 로드
+            if (config["mqtt"]["topics"]) {
+              for (const auto& topic_mapping : config["mqtt"]["topics"]) {
+                if (topic_mapping["ros_topic"] && topic_mapping["mqtt_topic"]) {
+                  std::string ros_topic = topic_mapping["ros_topic"].as<std::string>();
+                  std::string mqtt_topic = topic_mapping["mqtt_topic"].as<std::string>();
+                  mqtt_config.topic_mapping[ros_topic] = mqtt_topic;
                 }
               }
-              
-              if (mqtt_config.topic_mapping.empty()) {
-                RCLCPP_WARN(this->get_logger(), "No topic mappings found in MQTT config, MQTT publishing disabled");
-                mqtt_config.enabled = false;
-              } else {
-                RCLCPP_INFO(this->get_logger(), "MQTT publishing enabled with %zu topic mappings", mqtt_config.topic_mapping.size());
-              }
             }
             
-            formatter_->initMqtt(mqtt_config);
+            if (mqtt_config.topic_mapping.empty()) {
+              RCLCPP_WARN(this->get_logger(), "No topic mappings found in MQTT config, MQTT publishing disabled");
+              mqtt_config.enabled = false;
+            } else {
+              RCLCPP_INFO(this->get_logger(), "MQTT publishing enabled with %zu topic mappings", mqtt_config.topic_mapping.size());
+            }
           }
-        } catch (const std::exception& e) {
-          RCLCPP_ERROR(this->get_logger(), "Error initializing MQTT: %s", e.what());
+          
+          formatter_->initMqtt(mqtt_config);
         }
+      } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Error initializing MQTT: %s", e.what());
       }
-    } catch (const std::exception& e) {
-      RCLCPP_ERROR(this->get_logger(), "Error initializing formatter: %s", e.what());
-      return;
     }
     
     // 플러그인 로더 초기화
@@ -615,11 +607,9 @@ private:
         std::string output_format = param.as_string();
         try {
           if (output_format == "json") {
-            formatter_ = std::make_shared<ros2_introspection::JsonMessageFormatter>();
-          } else if (output_format == "csv") {
-            formatter_ = std::make_shared<ros2_introspection::CsvMessageFormatter>();
+            formatter_ = std::make_shared<JsonMessageFormatter>();
           } else {
-            formatter_ = std::make_shared<ros2_introspection::ConsoleMessageFormatter>();
+            formatter_ = std::make_shared<ConsoleMessageFormatter>();
           }
           output_format_ = output_format;
         } catch (const std::exception& e) {

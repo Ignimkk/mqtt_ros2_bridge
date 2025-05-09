@@ -161,20 +161,6 @@ public:
         const std::map<std::string, size_t>& message_counts) override;
 };
 
-class CsvMessageFormatter : public MessageFormatter
-{
-public:
-    void formatSingleMessage(
-        const rclcpp::Logger& logger,
-        const std::string& topic,
-        const Ros2Introspection::RenamedValues& values) override;
-        
-    void formatAllMessages(
-        const rclcpp::Logger& logger,
-        const std::map<std::string, Ros2Introspection::RenamedValues>& messages,
-        const std::map<std::string, size_t>& message_counts) override;
-};
-
 } // namespace ros2_introspection
 
 #endif // ROS2_INTROSPECTION_MESSAGE_FORMATTER_HPP

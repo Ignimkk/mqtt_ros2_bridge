@@ -145,17 +145,12 @@ ament_target_dependencies(dynamic_introspection_node
   yaml-cpp
 )
 
-# Test node
-add_executable(test_node src/test_node.cpp)
-target_link_libraries(test_node ${PROJECT_NAME})
-ament_target_dependencies(test_node rclcpp sensor_msgs)
 
 # Installation
 install(TARGETS
   ${PROJECT_NAME}
   ${PROJECT_NAME}_plugins
   message_formatter
-  test_node
   dynamic_introspection_node
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

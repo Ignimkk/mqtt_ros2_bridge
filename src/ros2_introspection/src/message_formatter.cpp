@@ -191,15 +191,47 @@ nlohmann::json MessageFormatter::renamedValuesToJson(const Ros2Introspection::Re
     nlohmann::json json_data;
     
     for (const auto& [name, value] : values) {
-        // 문자열 필드 처리 (특수 패턴이 있는 경우)
-        size_t text_pos = name.find("_text:");
-        if (text_pos != std::string::npos) {
-            std::string base_key = name.substr(0, text_pos);
-            std::string text_value = name.substr(text_pos + 6);  // "_text:" 이후
-            json_data[base_key] = text_value;
-        } else if (name.find("_value") == std::string::npos) {  // "_value" 패턴은 건너뜀
-            // 일반 필드
-            json_data[name] = value;
+        // 원본 필드명 유지
+        std::string field_name = name;
+        
+        // Convert value based on type
+        switch (value.type) {
+            case Ros2Introspection::MessageValue::Type::INT8:
+                json_data[field_name] = value.numeric.i8;
+                break;
+            case Ros2Introspection::MessageValue::Type::UINT8:
+                json_data[field_name] = value.numeric.u8;
+                break;
+            case Ros2Introspection::MessageValue::Type::INT16:
+                json_data[field_name] = value.numeric.i16;
+                break;
+            case Ros2Introspection::MessageValue::Type::UINT16:
+                json_data[field_name] = value.numeric.u16;
+                break;
+            case Ros2Introspection::MessageValue::Type::INT32:
+                json_data[field_name] = value.numeric.i32;
+                break;
+            case Ros2Introspection::MessageValue::Type::UINT32:
+                json_data[field_name] = value.numeric.u32;
+                break;
+            case Ros2Introspection::MessageValue::Type::INT64:
+                json_data[field_name] = value.numeric.i64;
+                break;
+            case Ros2Introspection::MessageValue::Type::UINT64:
+                json_data[field_name] = value.numeric.u64;
+                break;
+            case Ros2Introspection::MessageValue::Type::FLOAT:
+                json_data[field_name] = value.numeric.f;
+                break;
+            case Ros2Introspection::MessageValue::Type::DOUBLE:
+                json_data[field_name] = value.numeric.d;
+                break;
+            case Ros2Introspection::MessageValue::Type::BOOL:
+                json_data[field_name] = value.numeric.b;
+                break;
+            case Ros2Introspection::MessageValue::Type::STRING:
+                json_data[field_name] = value.str;
+                break;
         }
     }
     
@@ -494,56 +526,6 @@ void JsonMessageFormatter::formatAllMessages(
         RCLCPP_INFO(logger, "%s", json_str.c_str());
     } catch (const std::exception& e) {
         RCLCPP_ERROR(logger, "Error formatting JSON for all messages: %s", e.what());
-    }
-}
-
-// CsvMessageFormatter 구현
-void CsvMessageFormatter::formatSingleMessage(
-    const rclcpp::Logger& logger,
-    const std::string& topic,
-    const Ros2Introspection::RenamedValues& values)
-{
-    try {
-        std::stringstream ss;
-        rclcpp::Clock clock(RCL_SYSTEM_TIME);
-        double now = clock.now().seconds();
-        
-        ss << "timestamp,topic,field,value" << std::endl;
-        
-        for (const auto& [name, value] : values) {
-            ss << now << "," << topic << "," << name << "," << value << std::endl;
-        }
-        
-        RCLCPP_INFO(logger, "%s", ss.str().c_str());
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(logger, "Error formatting CSV for topic %s: %s", topic.c_str(), e.what());
-    }
-}
-
-void CsvMessageFormatter::formatAllMessages(
-    const rclcpp::Logger& logger,
-    const std::map<std::string, Ros2Introspection::RenamedValues>& messages,
-    const std::map<std::string, size_t>& message_counts)
-{
-    try {
-        std::stringstream ss;
-        rclcpp::Clock clock(RCL_SYSTEM_TIME);
-        double now = clock.now().seconds();
-        
-        ss << "timestamp,topic,field,value,message_count" << std::endl;
-        
-        for (const auto& [topic, values] : messages) {
-            auto count_it = message_counts.find(topic);
-            size_t count = (count_it != message_counts.end()) ? count_it->second : 0;
-            
-            for (const auto& [name, value] : values) {
-                ss << now << "," << topic << "," << name << "," << value << "," << count << std::endl;
-            }
-        }
-        
-        RCLCPP_INFO(logger, "%s", ss.str().c_str());
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(logger, "Error formatting CSV for all messages: %s", e.what());
     }
 }
 

@@ -42,6 +42,66 @@
 
 namespace Ros2Introspection{
 
+// Type system for message values
+struct MessageValue {
+    enum class Type {
+        INT8, UINT8, INT16, UINT16, INT32, UINT32, INT64, UINT64,
+        FLOAT, DOUBLE, BOOL, STRING
+    };
+
+    Type type;
+    union {
+        int8_t i8;
+        uint8_t u8;
+        int16_t i16;
+        uint16_t u16;
+        int32_t i32;
+        uint32_t u32;
+        int64_t i64;
+        uint64_t u64;
+        float f;
+        double d;
+        bool b;
+    } numeric;
+    std::string str;
+
+    MessageValue() : type(Type::DOUBLE) { numeric.d = 0.0; }
+    
+    // Constructors for different types
+    MessageValue(int8_t v) : type(Type::INT8) { numeric.i8 = v; }
+    MessageValue(uint8_t v) : type(Type::UINT8) { numeric.u8 = v; }
+    MessageValue(int16_t v) : type(Type::INT16) { numeric.i16 = v; }
+    MessageValue(uint16_t v) : type(Type::UINT16) { numeric.u16 = v; }
+    MessageValue(int32_t v) : type(Type::INT32) { numeric.i32 = v; }
+    MessageValue(uint32_t v) : type(Type::UINT32) { numeric.u32 = v; }
+    MessageValue(int64_t v) : type(Type::INT64) { numeric.i64 = v; }
+    MessageValue(uint64_t v) : type(Type::UINT64) { numeric.u64 = v; }
+    MessageValue(float v) : type(Type::FLOAT) { numeric.f = v; }
+    MessageValue(double v) : type(Type::DOUBLE) { numeric.d = v; }
+    MessageValue(bool v) : type(Type::BOOL) { numeric.b = v; }
+    MessageValue(const std::string& v) : type(Type::STRING) { str = v; }
+    MessageValue(std::string&& v) : type(Type::STRING) { str = std::move(v); }
+
+    // Get type name as string
+    std::string typeName() const {
+        switch(type) {
+            case Type::INT8: return "int8";
+            case Type::UINT8: return "uint8";
+            case Type::INT16: return "int16";
+            case Type::UINT16: return "uint16";
+            case Type::INT32: return "int32";
+            case Type::UINT32: return "uint32";
+            case Type::INT64: return "int64";
+            case Type::UINT64: return "uint64";
+            case Type::FLOAT: return "float";
+            case Type::DOUBLE: return "double";
+            case Type::BOOL: return "bool";
+            case Type::STRING: return "string";
+        }
+        return "unknown";
+    }
+};
+
 struct FlatMessage {
 
   /// Tree that the StringTreeLeaf(s) refer to.
@@ -49,7 +109,7 @@ struct FlatMessage {
 
   /// List of all those parsed fields that can be represented by a builtin value different from "string".
   /// This list will be filled by the funtion buildRosFlatType.
-  std::vector< std::pair<StringTreeLeaf, double> > values;
+  std::vector< std::pair<StringTreeLeaf, MessageValue> > values;
 
   /// List of all those parsed fields that can be represented by a builtin value equal to "string".
   /// This list will be filled by the funtion buildRosFlatType.
@@ -61,7 +121,7 @@ struct FlatMessage {
   std::vector< std::pair<StringTreeLeaf, BufferView> > blobs;
 };
 
-typedef std::vector< std::pair<std::string, double> > RenamedValues;
+typedef std::vector< std::pair<std::string, MessageValue> > RenamedValues;
 
 struct Ros2MessageInfo{
   const rosidl_message_type_support_t* type_support;

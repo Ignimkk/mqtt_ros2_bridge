@@ -73,22 +73,11 @@ bool TFMessageHandler::handleMessage(
     values.push_back({topic + "/transforms." + std::to_string(i) + "/header/stamp/nanosec", 
                      static_cast<double>(transform.header.stamp.nanosec)});
     
-    // 문자열 필드 처리 - 더 안전한 방식으로 수정
-    // 접미사에 문자열 값을 직접 포함
-    std::string frame_id_key = topic + "/transforms." + std::to_string(i) + "/header/frame_id";
-    std::string child_frame_id_key = topic + "/transforms." + std::to_string(i) + "/child_frame_id";
-    
-    // frame_id와 child_frame_id는 고정값 -1로 대체
-    values.push_back({frame_id_key, -1.0});
-    values.push_back({child_frame_id_key, -1.0});
-    
-    // 별도 필드에 문자열 값 정보 저장 (출력용)
-    values.push_back({frame_id_key + "_value", static_cast<double>(0)});
-    values.push_back({child_frame_id_key + "_value", static_cast<double>(0)});
-    
-    // 별도 필드에 실제 문자열 저장
-    values.push_back({frame_id_key + "_text:" + transform.header.frame_id, 1.0});
-    values.push_back({child_frame_id_key + "_text:" + transform.child_frame_id, 1.0});
+    // frame_id와 child_frame_id 정보 - 원본 필드명 유지
+    values.push_back({topic + "/transforms." + std::to_string(i) + "/header/frame_id", 
+                     transform.header.frame_id});
+    values.push_back({topic + "/transforms." + std::to_string(i) + "/child_frame_id", 
+                     transform.child_frame_id});
     
     // Transform - translation
     values.push_back({topic + "/transforms." + std::to_string(i) + "/transform/translation/x", 
@@ -168,22 +157,11 @@ void TFMessageHandler::tfCallback(
     values.push_back({topic + "/transforms." + std::to_string(i) + "/header/stamp/nanosec", 
                      static_cast<double>(transform.header.stamp.nanosec)});
     
-    // 문자열 필드 처리 - 더 안전한 방식으로 수정
-    // 접미사에 문자열 값을 직접 포함
-    std::string frame_id_key = topic + "/transforms." + std::to_string(i) + "/header/frame_id";
-    std::string child_frame_id_key = topic + "/transforms." + std::to_string(i) + "/child_frame_id";
-    
-    // frame_id와 child_frame_id는 고정값 -1로 대체
-    values.push_back({frame_id_key, -1.0});
-    values.push_back({child_frame_id_key, -1.0});
-    
-    // 별도 필드에 문자열 값 정보 저장 (출력용)
-    values.push_back({frame_id_key + "_value", static_cast<double>(0)});
-    values.push_back({child_frame_id_key + "_value", static_cast<double>(0)});
-    
-    // 별도 필드에 실제 문자열 저장
-    values.push_back({frame_id_key + "_text:" + transform.header.frame_id, 1.0});
-    values.push_back({child_frame_id_key + "_text:" + transform.child_frame_id, 1.0});
+    // frame_id와 child_frame_id 정보 - 원본 필드명 유지
+    values.push_back({topic + "/transforms." + std::to_string(i) + "/header/frame_id", 
+                     transform.header.frame_id});
+    values.push_back({topic + "/transforms." + std::to_string(i) + "/child_frame_id", 
+                     transform.child_frame_id});
     
     // Transform - translation
     values.push_back({topic + "/transforms." + std::to_string(i) + "/transform/translation/x", 

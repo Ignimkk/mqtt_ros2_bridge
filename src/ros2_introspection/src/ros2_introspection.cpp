@@ -185,27 +185,27 @@ bool Parser::deserializeIntoFlatMessage(
 
         if(member.type_id_ != ROS_TYPE_MESSAGE && member.type_id_ != ROS_TYPE_STRING)
         {
-          double value = 0;
+          MessageValue value;
           switch( member.type_id_)
           {
-            case ROS_TYPE_FLOAT:   value = double(CastFromBuffer<float>(cdr)); break;
-            case ROS_TYPE_DOUBLE:  value = double(CastFromBuffer<double>(cdr)); break;
+            case ROS_TYPE_FLOAT:   value = MessageValue(CastFromBuffer<float>(cdr)); break;
+            case ROS_TYPE_DOUBLE:  value = MessageValue(CastFromBuffer<double>(cdr)); break;
 
-            case ROS_TYPE_INT64:   value = double(CastFromBuffer<int64_t>(cdr)); break;
-            case ROS_TYPE_INT32:   value = double(CastFromBuffer<int32_t>(cdr)); break;
-            case ROS_TYPE_INT16:   value = double(CastFromBuffer<int16_t>(cdr)); break;
-            case ROS_TYPE_INT8:    value = double(CastFromBuffer<int8_t>(cdr)); break;
+            case ROS_TYPE_INT64:   value = MessageValue(CastFromBuffer<int64_t>(cdr)); break;
+            case ROS_TYPE_INT32:   value = MessageValue(CastFromBuffer<int32_t>(cdr)); break;
+            case ROS_TYPE_INT16:   value = MessageValue(CastFromBuffer<int16_t>(cdr)); break;
+            case ROS_TYPE_INT8:    value = MessageValue(CastFromBuffer<int8_t>(cdr)); break;
 
-            case ROS_TYPE_UINT64:  value = double(CastFromBuffer<uint64_t>(cdr)); break;
-            case ROS_TYPE_UINT32:  value = double(CastFromBuffer<uint32_t>(cdr)); break;
-            case ROS_TYPE_UINT16:  value = double(CastFromBuffer<uint16_t>(cdr)); break;
-            case ROS_TYPE_UINT8:   value = double(CastFromBuffer<uint8_t>(cdr)); break;
+            case ROS_TYPE_UINT64:  value = MessageValue(CastFromBuffer<uint64_t>(cdr)); break;
+            case ROS_TYPE_UINT32:  value = MessageValue(CastFromBuffer<uint32_t>(cdr)); break;
+            case ROS_TYPE_UINT16:  value = MessageValue(CastFromBuffer<uint16_t>(cdr)); break;
+            case ROS_TYPE_UINT8:   value = MessageValue(CastFromBuffer<uint8_t>(cdr)); break;
 
-            case ROS_TYPE_BOOLEAN: value = double(CastFromBuffer<bool>(cdr)); break;
+            case ROS_TYPE_BOOLEAN: value = MessageValue(CastFromBuffer<bool>(cdr)); break;
           }
           if( !skip_save )
           {
-            flat_container->values.push_back( {new_tree_leaf, value} );
+            flat_container->values.push_back( {new_tree_leaf, std::move(value)} );
           }
         }
         else if(member.type_id_ == ROS_TYPE_STRING)
@@ -213,7 +213,7 @@ bool Parser::deserializeIntoFlatMessage(
           if( !skip_save ){
             std::string str;
             cdr.deserialize( str );
-            flat_container->strings.push_back( {new_tree_leaf, std::move(str)} );
+            flat_container->values.push_back( {new_tree_leaf, MessageValue(std::move(str))} );
           }
           else{
             static std::string tmp;
@@ -253,7 +253,7 @@ void ConvertFlatMessageToRenamedValues(
     const auto& value = values[i];
     auto& dest  = renamed[i];
     value.first.toStr( dest.first );
-    dest.second = value.second;
+    dest.second = value.second;  // MessageValue는 직접 복사 가능
   }
 }
 
